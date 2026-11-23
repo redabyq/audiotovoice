@@ -26,8 +26,39 @@ logger = logging.getLogger(__name__)
 SUPPORTED_EXTENSIONS = {".mp3", ".wav", ".ogg"}
 
 
+def get_allowed_user_ids() -> set[int]:
+    """Read comma-separated numeric Telegram IDs from the environment."""
+    raw_ids = os.getenv("ALLOWED_USER_IDS", "")
+    allowed_ids = set()
+    for value in raw_ids.split(","):
+        value = value.strip()
+        if not value:
+            continue
+        try:
+            allowed_ids.add(int(value))
+        except ValueError:
+            logger.warning("Ignoring invalid Telegram user ID: %r", value)
+    return allowed_ids
+
+
+ALLOW_ALL_USERS = os.getenv("ALLOW_ALL_USERS", "true").strip().lower() == "true"
+ALLOWED_USER_IDS = get_allowed_user_ids()
+
+
+async def has_access(update: Update) -> bool:
+    """Check whether the sender is permitted to use the bot."""
+    user = update.effective_user
+    if ALLOW_ALL_USERS or (user and user.id in ALLOWED_USER_IDS):
+        return True
+    if update.message:
+        await update.message.reply_text("У вас нет доступа к этому боту.")
+    return False
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Explain how to use the bot."""
+    if not await has_access(update):
+        return
     await update.message.reply_text(
         "Пришлите мне аудиофайл MP3, WAV или OGG — я верну его как голосовое сообщение."
     )
@@ -72,6 +103,8 @@ def convert_to_voice(source: Path, destination: Path) -> None:
 
 async def handle_audio(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Download, transcode, and return supported audio as a voice message."""
+    if not await has_access(update):
+        return
     telegram_file, extension = input_file_from_message(update)
     if telegram_file is None or extension not in SUPPORTED_EXTENSIONS:
         await update.message.reply_text("Поддерживаются только файлы MP3, WAV и OGG.")

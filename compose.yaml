@@ -4,3 +4,5 @@ services:
     restart: unless-stopped
     environment:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN:-}
+      ALLOW_ALL_USERS: ${ALLOW_ALL_USERS:-true}
+      ALLOWED_USER_IDS: ${ALLOWED_USER_IDS:-}
